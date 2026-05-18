@@ -1,0 +1,294 @@
+================================================================================
+DESCRIPCIÓN DE VARIABLES - DATASET DE TARJETAS DE CRÉDITO ISO 8583
+Proyecto: Detección de Fraude Federada (Universidad)
+================================================================================
+
+Este documento describe las variables que componen los datasets sintéticos de
+transacciones de tarjeta de crédito generados a partir del estándar ISO 8583
+(Financial Transaction Card Originated Messages). El estándar define una
+estructura de mensajes con un MTI (Message Type Indicator) y un conjunto de
+Data Elements (DE) numerados del 1 al 128.
+
+Cada dataset contiene tanto los campos nativos del ISO 8583 como variables
+auxiliares de contexto (cliente, banco, fraude) necesarias para entrenar y
+evaluar un modelo de detección de fraude federado entre distintos países y
+niveles de banca (VIP, Privada, Estatal).
+
+================================================================================
+1) METADATOS DEL DATASET (no pertenecen al ISO 8583, pero contextualizan)
+================================================================================
+
+transaction_id
+    Identificador único e interno de la transacción dentro del dataset.
+    Sirve para trazabilidad y unión con otros datasets/logs.
+
+bank_id
+    Identificador del banco emisor (Banco A, Banco B, Banco C). En el
+    escenario federado, cada banco entrena localmente su modelo con su
+    propio dataset.
+
+bank_tier
+    Nivel del banco que opera la transacción. Valores posibles:
+        - "VIP"      : Banca premium / alto patrimonio.
+        - "PRIVATE"  : Banca privada / clientes selectos.
+        - "STATE"    : Banca estatal / minorista masivo.
+    Esta variable condiciona el perfil de gasto y los patrones de fraude.
+
+country_code
+    Código ISO 3166-1 alfa-2 del país emisor del dataset (ej: AR, BR, MX, ES).
+    Permite distinguir distritos regulatorios y patrones de consumo.
+
+customer_id
+    Identificador interno del cliente / titular de la tarjeta. Permite
+    agrupar transacciones por cliente para construir features de
+    comportamiento.
+
+================================================================================
+2) MTI - MESSAGE TYPE INDICATOR
+================================================================================
+
+mti
+    Indicador del tipo de mensaje ISO 8583 (4 dígitos). Los más comunes:
+        - 0100: Solicitud de autorización.
+        - 0110: Respuesta a solicitud de autorización.
+        - 0200: Solicitud financiera (compra, retiro).
+        - 0210: Respuesta a solicitud financiera.
+        - 0400: Reverso (cancelación).
+        - 0420: Reverso desde adquirente.
+    En el dataset se usa principalmente 0100/0200 para transacciones.
+
+================================================================================
+3) DATA ELEMENTS (DE) DEL ISO 8583
+================================================================================
+
+DE2 - pan (Primary Account Number)
+    Número de la tarjeta (PAN). En el dataset sintético se enmascara
+    siguiendo el patrón "BBBBBB******CCCC" (BIN visible + últimos 4).
+    El BIN identifica al banco emisor y la marca (Visa, Mastercard, etc.).
+
+DE3 - processing_code
+    Código de procesamiento (6 dígitos) que indica el tipo de operación,
+    cuenta origen y cuenta destino. Ejemplos:
+        - 000000: Compra desde cuenta default.
+        - 010000: Retiro de efectivo.
+        - 200000: Devolución / refund.
+
+DE4 - amount_transaction
+    Monto de la transacción en la moneda de la transacción. Sin punto
+    decimal (los últimos N dígitos representan los decimales según la
+    moneda). En el dataset se expone también como número decimal.
+
+DE5 - amount_settlement
+    Monto de liquidación en la moneda del adquirente.
+
+DE6 - amount_cardholder_billing
+    Monto en la moneda de facturación del tarjetahabiente.
+
+DE7 - transmission_datetime
+    Fecha y hora de transmisión del mensaje en formato MMDDhhmmss
+    (hora del switch). En el dataset se almacena como timestamp UTC.
+
+DE9 - conversion_rate_settlement
+    Tasa de conversión usada para la liquidación.
+
+DE10 - conversion_rate_cardholder_billing
+    Tasa de conversión usada para la facturación al tarjetahabiente.
+
+DE11 - stan (System Trace Audit Number)
+    Número de traza único del sistema (6 dígitos), generado por el
+    iniciador del mensaje. Útil para conciliar request/response.
+
+DE12 - time_local_transaction
+    Hora local de la transacción en formato hhmmss (zona horaria del
+    comercio o cajero).
+
+DE13 - date_local_transaction
+    Fecha local de la transacción en formato MMDD.
+
+DE14 - date_expiration
+    Fecha de expiración de la tarjeta en formato YYMM.
+
+DE18 - merchant_category_code (MCC)
+    Código de 4 dígitos que identifica el rubro del comercio
+    (ej: 5411 supermercados, 5812 restaurantes, 6011 cajeros).
+    Variable clave para detectar anomalías de gasto.
+
+DE19 - acquiring_country_code
+    Código numérico ISO 3166-1 del país del adquirente (donde se realizó
+    la transacción físicamente o donde está domiciliado el comercio
+    online).
+
+DE22 - pos_entry_mode
+    Modo de captura del PAN y del PIN en el POS. Ejemplos:
+        - 010: Manual (tecleado).
+        - 020: Banda magnética.
+        - 050: Chip (EMV).
+        - 070: Contactless / NFC.
+        - 080: Fallback de chip a banda.
+        - 081: E-commerce / sin tarjeta presente.
+    Variable crítica para fraude (manual y fallback son más sospechosos).
+
+DE25 - pos_condition_code
+    Condición del POS al momento de la transacción. Ejemplos:
+        - 00: Operación normal con tarjeta presente.
+        - 01: Cliente no presente (recurrente / e-commerce).
+        - 08: Mail/Phone Order.
+        - 59: E-commerce.
+
+DE32 - acquiring_institution_id
+    Identificador (BIN) de la institución adquirente.
+
+DE35 - track2_data
+    Datos de la pista 2 de la banda magnética (PAN + fecha vencimiento +
+    service code). En el dataset sintético se omite o se enmascara
+    completamente por seguridad.
+
+DE37 - retrieval_reference_number (RRN)
+    Número de referencia de 12 caracteres usado para localizar la
+    transacción posteriormente (disputas, conciliación).
+
+DE38 - authorization_id_response
+    Código de autorización (6 caracteres) devuelto por el emisor cuando
+    la transacción es aprobada.
+
+DE39 - response_code
+    Código de respuesta del emisor. Ejemplos:
+        - 00: Aprobada.
+        - 05: No honrar (declinada genérica).
+        - 14: Tarjeta inválida.
+        - 51: Fondos insuficientes.
+        - 54: Tarjeta expirada.
+        - 57: Transacción no permitida.
+        - 91: Emisor no disponible.
+    En el dataset sirve para distinguir intentos de fraude declinados.
+
+DE41 - card_acceptor_terminal_id
+    Identificador del terminal POS / ATM donde ocurrió la transacción
+    (8 caracteres).
+
+DE42 - card_acceptor_id
+    Identificador del comercio (15 caracteres). Permite agrupar
+    transacciones por establecimiento.
+
+DE43 - card_acceptor_name_location
+    Nombre y ubicación del comercio (40 caracteres). Suele incluir
+    nombre, ciudad y país.
+
+DE49 - currency_code_transaction
+    Código de moneda ISO 4217 numérico de la transacción
+    (ej: 032 ARS, 840 USD, 986 BRL, 484 MXN, 978 EUR).
+
+DE50 - currency_code_settlement
+    Código de moneda ISO 4217 de la liquidación.
+
+DE51 - currency_code_cardholder_billing
+    Código de moneda ISO 4217 de la facturación al tarjetahabiente.
+
+DE52 - pin_data
+    Bloque cifrado de PIN. En el dataset sintético se omite por
+    seguridad; sólo se conserva la bandera "pin_used" (booleano).
+
+DE54 - additional_amounts
+    Montos adicionales (ej: cashback, propina, balance de cuenta).
+
+DE55 - icc_data
+    Datos del chip EMV (TLV). En el dataset sintético se reduce a
+    indicadores: emv_used, cryptogram_present, cvm_method.
+
+DE102 - account_identification_1
+    Identificación de la cuenta origen (ej: número de cuenta enmascarado).
+
+DE123 - pos_data_code
+    Información extendida del POS (capacidad de chip, contactless,
+    presencia del titular, etc.).
+
+================================================================================
+4) VARIABLES DERIVADAS / DE CONTEXTO PARA FRAUDE
+================================================================================
+
+card_brand
+    Marca de la tarjeta inferida del BIN (VISA, MASTERCARD, AMEX, etc.).
+
+card_product
+    Producto / nivel de la tarjeta (CLASSIC, GOLD, PLATINUM, BLACK,
+    INFINITE, BUSINESS). Se relaciona con bank_tier.
+
+cardholder_age
+    Edad del titular (entero, 18-90).
+
+cardholder_gender
+    Género del titular (M / F / X).
+
+cardholder_country
+    País de residencia del titular (ISO alfa-2).
+
+cardholder_city
+    Ciudad de residencia del titular.
+
+merchant_country
+    País del comercio (ISO alfa-2). Distinto de cardholder_country
+    indica transacción internacional.
+
+merchant_city
+    Ciudad del comercio.
+
+is_international
+    Booleano. True si merchant_country != cardholder_country.
+
+is_online
+    Booleano. True si pos_entry_mode indica e-commerce / CNP.
+
+distance_from_home_km
+    Distancia (km) entre la ciudad del cliente y la del comercio.
+    Feature común en detección de fraude.
+
+
+
+is_weekend
+    Booleano. True si la transacción ocurrió en sábado o domingo.
+
+hour_of_day
+    Hora del día (0-23) de la transacción local.
+
+================================================================================
+5) ETIQUETAS DE FRAUDE (TARGET)
+================================================================================
+
+is_fraud
+    Variable objetivo (target). 1 si la transacción es fraudulenta,
+    0 si es legítima. Es la variable a predecir por el modelo
+    federado.
+
+fraud_type
+    Categoría del fraude (sólo cuando is_fraud = 1). Cada país/banco
+    introducirá distribuciones LEVEMENTE distintas para que el
+    aprendizaje federado sea desafiante:
+        - "CARD_NOT_PRESENT" : Fraude online / e-commerce.
+        - "CARD_PRESENT"     : Clonación de banda / chip.
+        - "ACCOUNT_TAKEOVER" : Toma del control de la cuenta.
+        - "STOLEN_CARD"      : Tarjeta perdida o robada.
+        - "MERCHANT_FRAUD"   : Comercio fraudulento o colusión.
+        - "FIRST_PARTY"      : Fraude del propio titular.
+
+fraud_scenario_id
+    Identificador interno del escenario sintético inyectado (útil
+    para análisis de errores del modelo).
+
+================================================================================
+NOTAS PARA LOS ALUMNOS
+================================================================================
+
+- Los datasets de los Bancos A y B (entrenamiento federado) tendrán
+  distribuciones de fraude levemente distintas (drift de concepto y
+  drift de covariables).
+- El dataset del Banco C (test) introducirá un patrón de fraude no
+  visto en entrenamiento, evaluando la capacidad de generalización
+  del modelo federado.
+- Todas las variables están sintetizadas: ningún PAN, PIN, track o
+  dato real de tarjetas/clientes está presente.
+- Se recomienda usar features derivadas (sección 4) como entrada
+  principal del modelo, en lugar de campos crudos como pan o stan.
+
+================================================================================
+FIN DEL DOCUMENTO
+================================================================================
