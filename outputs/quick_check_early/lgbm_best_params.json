@@ -1,0 +1,31 @@
+{
+  "primary_metric": "f1_best",
+  "best_validation_metrics": {
+    "f1_best": 0.8028673835120578,
+    "precision_best": 0.9572649572649573,
+    "recall_best": 0.691358024691358,
+    "roc_auc": 0.8961168046629225,
+    "pr_auc": 0.774782873171169,
+    "best_threshold": 0.8295436511587302,
+    "tn": 3833,
+    "fp": 5,
+    "fn": 50,
+    "tp": 112
+  },
+  "best_params": {
+    "num_leaves": 31,
+    "min_split_gain": 0.0,
+    "max_depth": 11,
+    "colsample_bytree": 1.0,
+    "reg_alpha": 0.7,
+    "reg_lambda": 0.7,
+    "n_estimators": 1100,
+    "subsample": 0.9,
+    "learning_rate": 0.015,
+    "min_child_samples": 40
+  },
+  "train_rows": 20000,
+  "test_rows": 100000,
+  "frauds_estimated_gt": 1578,
+  "frauds_estimated_gt_pct": 0.01578
+}

@@ -1,0 +1,2 @@
+trial,roc_auc,pr_auc,best_threshold,f1_best,precision_best,recall_best,tn,fp,fn,tp,subsample,reg_lambda,reg_alpha,num_leaves,n_estimators,min_split_gain,min_child_samples,max_depth,learning_rate,colsample_bytree
+1,0.8961168046629225,0.774782873171169,0.8295436511587302,0.8028673835120578,0.9572649572649573,0.691358024691358,3833,5,50,112,0.9,0.7,0.7,31,1100,0.0,40,11,0.015,1.0
